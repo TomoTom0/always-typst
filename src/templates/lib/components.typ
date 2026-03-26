@@ -65,9 +65,6 @@
   let bg = if p != none { p.at("code-bg") } else { rgb("#f0f7ff") }
   let accent = if p != none { p.at("accent") } else { rgb("#2b6cb0") }
   let muted = if p != none { p.at("muted") } else { rgb("#718096") }
-  let header-items = ()
-  if lang != none { header-items.push(lang) }
-  if file != none { header-items.push(file) }
   stack(
     spacing: 0pt,
     block(

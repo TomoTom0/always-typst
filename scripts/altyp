@@ -148,7 +148,7 @@ cmd_convert() {
 
   # always-typst ヘッダを生成
   {
-    echo '#import "@local/always-typst:0.1.0": doc, note, warn, fig, blockquote'
+    echo '#import "@local/always-typst:0.1.0": doc, note, warn, fig, blockquote, ruby, codefile'
     echo ""
     echo "#show: doc.with("
     printf '  title:    "%s",\n' "$title"

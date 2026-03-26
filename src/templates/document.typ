@@ -104,10 +104,7 @@
             )).flatten()
           )
         } else {
-          for line in lines {
-            text(font: font-mono, size: 0.88em, line.body)
-            linebreak()
-          }
+          text(font: font-mono, size: 0.88em, it.text)
         }
       }
     )
