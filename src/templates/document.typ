@@ -135,7 +135,6 @@
     stroke: (x, y) => {
       let s = stroke(paint: p.at("rule"), thickness: 0.8pt, dash: "dotted")
       if y == 0 { none }
-      else if x == 0 { (top: s) }
       else { (top: s, left: s) }
     },
     fill: (x, y) => if y == 0 { p.at("table-head") } else { white },
