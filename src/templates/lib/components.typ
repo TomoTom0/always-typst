@@ -111,7 +111,7 @@
 //   #wide-table[#table(...)]                   // 自動（推奨）
 //   #wide-table(mode: "rotate")[#table(...)]   // 回転を優先
 //   #wide-table(mode: "small")[#table(...)]    // フォント縮小のみ
-#let wide-table(mode: auto, body) = context {
+#let wide-table(mode: auto, caption: none, body) = context {
   let p = _palette-state.get()
 
   // body がテーブルの場合: ヘッダ再構築 + 開始ページ記録
@@ -142,6 +142,33 @@
     processed
   }
 
+  // caption が指定されている場合は figure で包む（非回転用）
+  let wrap(content) = if caption != none {
+    figure(content, kind: table, caption: caption)
+  } else { content }
+
+  // 回転ケース用: キャプションを回転ブロック内に含める（caption も一緒に回転）
+  let make-rotated(b, width) = {
+    let inner = if caption != none {
+      counter(figure.where(kind: table)).step()
+      stack(spacing: 6pt,
+        align(center, {
+          set text(size: 0.88em)
+          text(weight: "bold", fill: p.at("primary"),
+            context [表 #counter(figure.where(kind: table)).display()]
+          )
+          text(fill: p.at("muted"), [: ])
+          caption
+        }),
+        b,
+      )
+    } else { b }
+    align(center, rotate(-90deg, reflow: true, block(width: width, align(center, inner))))
+  }
+
+  // 後方互換: 非回転ケース用 wrap（未使用になった wrap-rotated は削除）
+  let wrap-rotated(rotated-content) = rotated-content
+
   // page.margin は単一値(25mm)またはdict((x:20mm,y:20mm)など)の両方がありうる
   let _m = page.margin
   let _side(key, cross) = if type(_m) == dictionary {
@@ -158,58 +185,45 @@
   let w0 = measure(block(width: auto, guarded)).width
 
   // 調整不要: 幅 100% に拡張して返す（auto 列テーブルが狭くならないように）
-  if mode == "normal" { return block(width: 100%, guarded) }
+  if mode == "normal" { return wrap(block(width: 100%, guarded)) }
 
   // mode: "rotate" → フォント縮小をスキップして直接回転
   if mode == "rotate" {
     let b2 = { set text(size: 0.75em); guarded }
     let w2 = measure(block(width: auto, b2)).width
-    if w2 <= lw {
-      // reflow: true で回転後のサイズ(高さ=lw, 幅=元テーブルの高さ)をレイアウトに反映
-      // → 後続コンテンツとの重なりが発生しない
-      return align(center,
-        rotate(-90deg, reflow: true,
-          block(width: lw, align(center, b2))
-        )
-      )
-    }
-    // 回転しても収まらない → はみ出しフォールバック
-    return align(center, block(width: w2, b2))
+    let use-lw = if w2 <= lw { lw } else { w2 }
+    return make-rotated(b2, use-lw)
   }
 
   // mode: auto / "small" / "overflow" → 優先順に試みる
 
   // 収まる場合: 100% 幅に拡張（auto 列の狭いテーブルを本文幅に揃える）
   if w0 <= cw {
-    return block(width: 100%, guarded)
+    return wrap(block(width: 100%, guarded))
   }
 
   // Step 1: フォント縮小
   let b1 = { set text(size: 0.85em); guarded }
   let w1 = measure(block(width: auto, b1)).width
-  if w1 <= cw { return block(width: 100%, b1) }
+  if w1 <= cw { return wrap(block(width: 100%, b1)) }
 
   let b2 = { set text(size: 0.75em); guarded }
   let w2 = measure(block(width: auto, b2)).width
-  if w2 <= cw { return block(width: 100%, b2) }
+  if w2 <= cw { return wrap(block(width: 100%, b2)) }
 
   // Step 2: 余白はみ出し（small モード以外）
   // 左右マージン合計分まで中央配置で均等にはみ出す（行方向ページまたぎも許容）
   if mode != "small" and w2 <= cw + ml + mr {
-    return align(center, block(width: w2, b2))
+    return wrap(align(center, block(width: w2, b2)))
   }
 
   // Step 3: 90度回転（auto のみ）
   if mode == auto and w2 <= lw {
-    return align(center,
-      rotate(-90deg, reflow: true,
-        block(width: lw, align(center, b2))
-      )
-    )
+    return make-rotated(b2, lw)
   }
 
   // フォールバック: 0.75em + はみ出し許容（行方向ページまたぎも許容）
-  align(center, block(width: w2, b2))
+  wrap(align(center, block(width: w2, b2)))
 }
 
 // layout-aware 画像挿入

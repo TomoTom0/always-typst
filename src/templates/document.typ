@@ -132,10 +132,12 @@
 
   // テーブルスタイル
   set table(
-    stroke: (x, y) => if y == 0 { none } else { (top: 0.5pt + p.at("rule")) },
-    fill: (x, y) => if y == 0 { p.at("table-head") }
-                    else if calc.odd(y) { p.at("table-odd") }
-                    else { white },
+    stroke: (x, y) => {
+      let s = stroke(paint: p.at("rule"), thickness: 0.8pt, dash: "dotted")
+      if y == 0 { none }
+      else { (top: s, left: s) }
+    },
+    fill: (x, y) => if y == 0 { p.at("table-head") } else { white },
   )
 
   // ヘッダ行（y==0）を白太字で表示
