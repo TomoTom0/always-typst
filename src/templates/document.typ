@@ -5,7 +5,7 @@
 
 #import "lib/fonts.typ": body-font, heading-font, font-mono
 #import "lib/colors.typ": get-palette
-#import "lib/components.typ": _layout-state, _palette-state
+#import "lib/components.typ": _layout-state, _palette-state, _tbl-start-page, wide-table
 
 #let doc(
   title:    "",
@@ -26,6 +26,7 @@
   // state を更新してコンポーネントから参照できるようにする
   _layout-state.update(layout)
   _palette-state.update(p)
+  _tbl-start-page.update(1)  // ページ1の初回ヘッダが濃色になるよう初期値を1に設定
 
   // ページ設定
   let (paper, margin, font-size) = if layout == "mobile" {
@@ -43,11 +44,23 @@
     paper: paper,
     flipped: flipped,
     margin: margin,
-    footer: context [
-      #set text(size: 8pt, fill: p.at("muted"))
-      #h(1fr)
-      #counter(page).display("1 / 1", both: true)
-    ],
+    footer: context {
+      let cur   = str(counter(page).get().first())
+      let total = str(counter(page).final().first())
+      let mr = if type(margin) == dictionary {
+        if "right" in margin { margin.right } else if "x" in margin { margin.x } else { 0pt }
+      } else { margin }
+      // 右マージンに近い位置まで拡張し、右端揃えで配置
+      // 現在ページ: 本文サイズ・太字・primary色で主張
+      // 総ページ:   小サイズ・muted で控えめに
+      block(
+        width: 100% + mr - 6mm,
+        align(right, {
+          text(size: font-size, weight: "bold", fill: p.at("primary"), cur)
+          text(size: 7.5pt, fill: p.at("muted"), " / " + total)
+        })
+      )
+    },
   )
 
   // 基本テキスト設定
@@ -124,7 +137,38 @@
                     else if calc.odd(y) { p.at("table-odd") }
                     else { white },
   )
-  show table.cell.where(y: 0): set text(fill: white, weight: "bold")
+
+  // ヘッダ行（y==0）を白太字で表示
+  show table.cell: it => {
+    if it.y == 0 {
+      set text(fill: white, weight: "bold")
+      it
+    } else {
+      it
+    }
+  }
+
+  // 全テーブルを wide-table に委譲
+  // ヘッダ再構築・ページ記録・サイズ調整はすべて wide-table 内で処理
+  show table: it => wide-table(it)
+
+  // 表を含む figure はページをまたぐことができるように設定
+  show figure.where(kind: table): set block(breakable: true)
+
+  // 図・表の番号付けと日本語補足テキスト
+  show figure.where(kind: table): set figure(supplement: [表])
+  show figure.where(kind: image): set figure(supplement: [図])
+  // 表のキャプションはテーブルの上に配置
+  show figure.where(kind: table): set figure.caption(position: top)
+  // キャプションスタイル
+  show figure.caption: it => {
+    set text(size: 0.88em)
+    text(fill: p.at("primary"), weight: "bold",
+      [#it.supplement #it.counter.display(it.numbering)]
+    )
+    text(fill: p.at("muted"), it.separator)
+    it.body
+  }
 
   // 見出し内の英数字サイズ補正（欧文フォントのキャップハイトを和文全角に揃える）
   show heading: it => {

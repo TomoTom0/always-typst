@@ -4,7 +4,7 @@
 
 #import "lib/fonts.typ": body-font, heading-font, font-mono
 #import "lib/colors.typ": get-palette
-#import "lib/components.typ": _layout-state, _palette-state
+#import "lib/components.typ": _layout-state, _palette-state, _tbl-start-page, wide-table
 
 // スライドのページサイズ（16:9）
 #let _slide-width  = 254mm
@@ -22,11 +22,14 @@
 
   _layout-state.update("slide")
   _palette-state.update(p)
+  _tbl-start-page.update(1)  // ページ1の初回ヘッダが濃色になるよう初期値を1に設定
+
+  let margin = (x: 16mm, top: 14mm, bottom: 12mm)
 
   set page(
     width:  _slide-width,
     height: _slide-height,
-    margin: (x: 16mm, top: 14mm, bottom: 12mm),
+    margin: margin,
     header: context {
       // タイトルスライド以外はヘッダを表示
       if counter(page).get().first() > 1 {
@@ -37,9 +40,19 @@
       }
     },
     footer: context {
-      set text(size: 7pt, fill: p.at("muted"))
-      h(1fr)
-      counter(page).display()
+      let cur   = str(counter(page).get().first())
+      let total = str(counter(page).final().first())
+      let mr = if type(margin) == dictionary {
+        if "right" in margin { margin.right } else if "x" in margin { margin.x } else { 0pt }
+      } else { margin }
+      // 右マージンに近い位置まで拡張して右端揃え
+      block(
+        width: 100% + mr - 5mm,
+        align(right, {
+          text(size: 9pt, weight: "bold", fill: p.at("primary"), cur)
+          text(size: 6.5pt, fill: p.at("muted"), " / " + total)
+        })
+      )
     },
   )
 
@@ -79,7 +92,26 @@
                     else if calc.odd(y) { p.at("table-odd") }
                     else { white },
   )
-  show table.cell.where(y: 0): set text(fill: white, weight: "bold", size: 0.9em)
+  // ヘッダ行（y==0）を白太字で表示
+  show table.cell: it => {
+    if it.y == 0 {
+      set text(fill: white, weight: "bold", size: 0.9em)
+      it
+    } else {
+      it
+    }
+  }
+
+  show table: it => wide-table(it)
+  show figure.where(kind: table): set block(breakable: true)
+  show figure.where(kind: table): set figure(supplement: [表])
+  show figure.where(kind: image): set figure(supplement: [図])
+  show figure.caption: it => {
+    set text(size: 0.82em)
+    text(fill: p.at("primary"), weight: "bold", [#it.supplement #it.counter.display(it.numbering)])
+    text(fill: p.at("muted"), it.separator)
+    it.body
+  }
 
   // 見出し（スライド内セクションタイトル）
   show heading.where(level: 1): it => {

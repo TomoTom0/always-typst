@@ -154,6 +154,50 @@ _palette-state.update(p)
 | `fig` | `fig(path, caption: none, width: auto)` | layout-aware 画像挿入 |
 | `ruby` | `ruby(base, rt)` | ルビ（振り仮名）。`context` + `measure()` で幅を計算 |
 | `codefile` | `codefile(lang: none, file: none, body)` | ファイル名付きコードブロック（accent 色ヘッダ） |
+| `wide-table` | `wide-table(mode: auto, body)` | 横長テーブルの自動レイアウト調整（後述） |
+
+### wide-table の設計
+
+`document.typ` / `slide.typ` の `show table: it => wide-table(it)` により、全テーブルが自動的に `wide-table` を経由する。直接呼び出し `#wide-table(mode: "rotate")[#table(...)]` も可。
+
+#### mode 引数
+
+| mode | 動作 |
+|---|---|
+| `auto`（デフォルト） | フォント縮小 → 余白はみ出し → 90度回転の順に自動選択 |
+| `"normal"` | 調整なし（100% 幅に拡張のみ） |
+| `"small"` | フォント縮小のみ（overflow・rotate は行わない） |
+| `"overflow"` | フォント縮小 + 余白はみ出し |
+| `"rotate"` | フォント縮小 + 回転（`reflow: true` で後続コンテンツとの重なりなし） |
+
+#### ヘッダ再構築
+
+テーブルの先頭行を `table.header(repeat: true, ...)` に変換することで、ページをまたいだ際のヘッダ繰り返しを実現する。
+
+- 既に `table.header` が先頭にある場合は再構築しない
+- `p != none`（パレット設定済み）の場合のみ実行
+
+#### テーブルスタイルの分担
+
+| 役割 | 担当 |
+|---|---|
+| ヘッダ背景色 | `set table(fill: (x, y) => if y == 0 { p.at("table-head") } ...)` |
+| ヘッダ文字（白太字） | `show table.cell: it => { if it.y == 0 { set text(fill: white, weight: "bold"); it } else { it } }` |
+| データ行背景（交互） | `set table(fill: ...)` の奇数行判定 |
+| ページをまたぐ figure | `show figure.where(kind: table): set block(breakable: true)` |
+
+> **Typst 0.14.2 の制約:** `show table.header: it => { set text(fill: white); it }` はヘッダのテキスト色に効かない。`show table.cell` + `it.y == 0` による判定が唯一の有効手段。
+
+#### 幅測定と縮小の優先順位（auto モード）
+
+```
+1. 幅が収まる場合: block(width: 100%) で拡張して返す
+2. フォント 0.85em 縮小で収まる: そのまま返す
+3. フォント 0.75em 縮小で収まる: そのまま返す
+4. 余白はみ出し（左右マージン合計まで）で収まる: 中央寄せで返す
+5. 90度回転（auto のみ）: rotate(-90deg, reflow: true) で返す
+6. フォールバック: 0.75em + はみ出し許容
+```
 
 ---
 
@@ -217,6 +261,14 @@ _palette-state.update(p)
 - 行番号: `line-numbers: true` で有効化（デフォルト: off）
 - インラインコード: 背景色 + 等幅フォント
 
+#### テーブル
+
+- `show table: it => wide-table(it)` で全テーブルを `wide-table` に委譲
+- `show table.cell: it => { if it.y == 0 { set text(fill: white, weight: "bold"); it } else { it } }` でヘッダ行を白太字
+- `show figure.where(kind: table): set block(breakable: true)` でページまたぎを許可
+- `figure(table(...), caption: [...])` で自動的に「表 N」番号付き（キャプション位置: top）
+- `figure(image(...), caption: [...])` は「図 N」番号付き（キャプション位置: bottom）
+
 ### 6.2 slide.typ（slide）
 
 パラメータ:
@@ -235,25 +287,53 @@ _palette-state.update(p)
 スライドは layout 引数を持たない（常に 16:9）。
 各スライドは `#pagebreak()` で区切る。
 
+テーブルの設定は `document.typ` と同じ（`show table.cell` によるヘッダ白太字、`wide-table` 委譲、`breakable: true`）。
+スライドのヘッダセルフォントサイズは `0.9em`（通常の `1em` より小さい）で自動調整される。
+
 ---
 
-## 7. Markdown 変換（scripts/md2typst.sh）
+## 7. CLI（scripts/altyp）
 
-pandoc を使って Markdown を always-typst テンプレート付き Typst ファイルに変換する。
+### コマンド一覧
+
+| コマンド | 説明 |
+|---|---|
+| `altyp install` | テンプレート・スキル・CLI を所定ディレクトリにインストール |
+| `altyp convert <input>` | `.md` または `.typ` を PDF に変換 |
+
+### altyp convert
+
+入力ファイルの拡張子で動作が切り替わる。
+
+#### .typ 入力（Typst → PDF）
 
 ```bash
-bash scripts/md2typst.sh input.md --author "著者" --date "2026-03-26" --toc
+altyp convert input.typ
+altyp convert input.typ --output out.pdf
+altyp convert input.typ --watch        # ファイル変更を監視して自動再コンパイル
 ```
 
-| オプション | デフォルト |
-|---|---|
-| `--title` | 最初の H1 から自動抽出 |
-| `--subtitle`, `--author`, `--date` | なし |
-| `--toc`, `--cover` | false |
-| `--layout`, `--tone`, `--color` | print / business / blue |
-| `--output` | 入力と同じディレクトリに `.typ` |
+#### .md 入力（Markdown → Typst → PDF）
 
-pandoc 出力の後処理:
+```bash
+altyp convert input.md                         # .typ を生成
+altyp convert input.md --to pdf                # PDF まで一括変換
+altyp convert input.md --author "著者" --toc   # オプション指定
+```
+
+| オプション | デフォルト | .md のみ |
+|---|---|---|
+| `--to typst\|pdf` | `typst` | ✓ |
+| `--output, -o` | 入力と同じディレクトリ | |
+| `--title` | 最初の H1 から自動抽出 | ✓ |
+| `--subtitle`, `--author`, `--date` | なし | ✓ |
+| `--toc`, `--cover` | false | ✓ |
+| `--layout, -l` | `print` | ✓ |
+| `--tone, -t` | `business` | ✓ |
+| `--color, -c` | `blue` | ✓ |
+| `--watch, -w` | false | .typ のみ |
+
+pandoc 出力の後処理（.md 入力時）:
 - `#align(center)[#table(...)]` → `#table(...)` に変換（align/table 競合回避）
 - `#horizontalrule` → `#line(length: 100%, stroke: 0.5pt)`
 - `#h(-1em)` を除去（LaTeX `\!` 変換の重複スペース対策）
@@ -303,3 +383,6 @@ pandoc 出力の後処理:
 - テンプレートは Typst ローカルパッケージ（`@local/always-typst:0.1.0`）として配布する
 - `ruby` コンポーネントは `context` + `measure()` を使用（`style()` は Typst 0.14 で非推奨）
 - イタリックの日本語は明朝体への切り替えをしない（合成斜体 + アクセントカラーのみ）
+- テーブルヘッダの白テキストは `show table.cell` + `it.y == 0` で実現（`show table.header` は Typst 0.14.2 でテキスト色に効かない）
+- `figure(table(...))` のページまたぎは `show figure.where(kind: table): set block(breakable: true)` が必須
+- `wide-table` 内の `table.header` 再構築は先頭行を `table.header(repeat: true, ...)` に変換するのみ（セルへの直接スタイル付与はしない）
