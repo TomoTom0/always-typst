@@ -24,10 +24,12 @@
   _palette-state.update(p)
   _tbl-start-page.update(1)  // ページ1の初回ヘッダが濃色になるよう初期値を1に設定
 
+  let margin = (x: 16mm, top: 14mm, bottom: 12mm)
+
   set page(
     width:  _slide-width,
     height: _slide-height,
-    margin: (x: 16mm, top: 14mm, bottom: 12mm),
+    margin: margin,
     header: context {
       // タイトルスライド以外はヘッダを表示
       if counter(page).get().first() > 1 {
@@ -40,10 +42,9 @@
     footer: context {
       let cur   = str(counter(page).get().first())
       let total = str(counter(page).final().first())
-      let _m = page.margin
-      let mr = if type(_m) == dictionary {
-        if "right" in _m { _m.right } else if "x" in _m { _m.x } else { 16mm }
-      } else { _m }
+      let mr = if type(margin) == dictionary {
+        if "right" in margin { margin.right } else if "x" in margin { margin.x } else { 0pt }
+      } else { margin }
       // 右マージンに近い位置まで拡張して右端揃え
       block(
         width: 100% + mr - 5mm,
@@ -94,7 +95,7 @@
   // ヘッダ行（y==0）を白太字で表示
   show table.cell: it => {
     if it.y == 0 {
-      set text(fill: white, weight: "bold")
+      set text(fill: white, weight: "bold", size: 0.9em)
       it
     } else {
       it

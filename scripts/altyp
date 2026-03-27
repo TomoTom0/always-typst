@@ -149,8 +149,9 @@ cmd_convert() {
   command -v pandoc &>/dev/null || { echo "Error: pandoc がインストールされていません。" >&2; exit 1; }
   local pandoc_ver
   pandoc_ver=$(pandoc --version | awk 'NR==1{print $2}')
-  awk -v v="$pandoc_ver" 'BEGIN{split(v,a,"."); if(a[1]<3||(a[1]==3&&a[2]<1)){exit 1}}' \
-    || { echo "Error: pandoc 3.1 以上が必要です（現在: ${pandoc_ver}）。" >&2; exit 1; }
+  if ! printf '%s\n' "3.1" "$pandoc_ver" | sort -V -C; then
+    echo "Error: pandoc 3.1 以上が必要です（現在: ${pandoc_ver}）。" >&2; exit 1
+  fi
 
   # .typ 出力パスを決定
   local typ_out

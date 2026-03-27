@@ -47,10 +47,9 @@
     footer: context {
       let cur   = str(counter(page).get().first())
       let total = str(counter(page).final().first())
-      let _m = page.margin
-      let mr = if type(_m) == dictionary {
-        if "right" in _m { _m.right } else if "x" in _m { _m.x } else { 25mm }
-      } else { _m }
+      let mr = if type(margin) == dictionary {
+        if "right" in margin { margin.right } else if "x" in margin { margin.x } else { 0pt }
+      } else { margin }
       // 右マージンに近い位置まで拡張し、右端揃えで配置
       // 現在ページ: 本文サイズ・太字・primary色で主張
       // 総ページ:   小サイズ・muted で控えめに

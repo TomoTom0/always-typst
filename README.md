@@ -21,8 +21,9 @@ cargo install typst-cli
 apt の pandoc は古い場合があるため、GitHub から最新版を取得する：
 
 ```bash
+arch=$(dpkg --print-architecture)
 wget -q "$(curl -s https://api.github.com/repos/jgm/pandoc/releases/latest \
-  | grep -o '"browser_download_url": *"[^"]*amd64\.deb"' \
+  | grep -o "\"browser_download_url\": *\"[^\"]*${arch}\.deb\"" \
   | grep -o 'https://[^"]*')" -O /tmp/pandoc.deb \
   && sudo dpkg -i /tmp/pandoc.deb \
   && rm /tmp/pandoc.deb

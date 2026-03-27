@@ -144,21 +144,21 @@
 
   // page.margin は単一値(25mm)またはdict((x:20mm,y:20mm)など)の両方がありうる
   let _m = page.margin
-  let _side(key, cross, fallback) = if type(_m) == dictionary {
+  let _side(key, cross) = if type(_m) == dictionary {
     if key   in _m { _m.at(key)   }
     else if cross in _m { _m.at(cross) }
-    else { fallback }
+    else { 0pt }
   } else { _m }
-  let ml = _side("left",   "x", 25mm)
-  let mr = _side("right",  "x", 25mm)
+  let ml = _side("left",   "x")
+  let mr = _side("right",  "x")
   let cw = page.width  - ml - mr
-  let lw = page.height - _side("top", "y", 25mm) - _side("bottom", "y", 25mm)
+  let lw = page.height - _side("top", "y") - _side("bottom", "y")
 
   // block(width: auto) で自然幅（コンテナ幅に依存しない固有幅）を取得
   let w0 = measure(block(width: auto, guarded)).width
 
   // 調整不要: 幅 100% に拡張して返す（auto 列テーブルが狭くならないように）
-  if mode == "normal" { return guarded }
+  if mode == "normal" { return block(width: 100%, guarded) }
 
   // mode: "rotate" → フォント縮小をスキップして直接回転
   if mode == "rotate" {

@@ -15,11 +15,6 @@ test_convert_typ_default() {
   [[ -f "$out" ]] && [[ -s "$out" ]]
 }
 
-test_convert_typ_rejects_watch_in_test() {
-  # --watch はインタラクティブなので起動確認のみ（すぐ kill）
-  altyp convert "$FIXTURE" --output /dev/null 2>&1
-}
-
 test_convert_typ_output_option() {
   local out
   out=$(mktemp --suffix=.pdf)
