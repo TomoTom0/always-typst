@@ -108,10 +108,10 @@ show heading: it => {
   accent-light:  ...,  // note ボックス背景等
   text:          ...,  // 本文テキスト
   muted:         ...,  // 補足・キャプション・フッター
-  rule:          ...,  // 罫線
+  rule:          ...,  // 罫線（テーブル点線罫線に使用。視認性のある中間色を使用）
   code-bg:       ...,  // コードブロック背景
   table-head:    ...,  // テーブルヘッダ背景
-  table-odd:     ...,  // テーブル奇数行背景
+  table-odd:     ...,  // テーブル奇数行背景（現在未使用）
 )
 ```
 
@@ -154,11 +154,15 @@ _palette-state.update(p)
 | `fig` | `fig(path, caption: none, width: auto)` | layout-aware 画像挿入 |
 | `ruby` | `ruby(base, rt)` | ルビ（振り仮名）。`context` + `measure()` で幅を計算 |
 | `codefile` | `codefile(lang: none, file: none, body)` | ファイル名付きコードブロック（accent 色ヘッダ） |
-| `wide-table` | `wide-table(mode: auto, body)` | 横長テーブルの自動レイアウト調整（後述） |
+| `wide-table` | `wide-table(mode: auto, caption: none, body)` | 横長テーブルの自動レイアウト調整（後述） |
 
 ### wide-table の設計
 
-`document.typ` / `slide.typ` の `show table: it => wide-table(it)` により、全テーブルが自動的に `wide-table` を経由する。直接呼び出し `#wide-table(mode: "rotate")[#table(...)]` も可。
+`document.typ` / `slide.typ` の `show table: it => wide-table(it)` により、全テーブルが自動的に `wide-table` を経由する。直接呼び出し `#wide-table(mode: "rotate", caption: [タイトル])[#table(...)]` も可。
+
+`caption` を指定した場合：
+- 非回転ケース: `figure(kind: table, caption: ...)` で包み、自動で「表 N」番号付きキャプションを付与
+- 回転ケース: キャプションをカウンタ付きで回転ブロック内に含める（`figure` は使わず手動でカウンタを制御）
 
 #### mode 引数
 
@@ -268,6 +272,7 @@ _palette-state.update(p)
 - `show figure.where(kind: table): set block(breakable: true)` でページまたぎを許可
 - `figure(table(...), caption: [...])` で自動的に「表 N」番号付き（キャプション位置: top）
 - `figure(image(...), caption: [...])` は「図 N」番号付き（キャプション位置: bottom）
+- テーブル罫線: 行間・列間ともに点線（`stroke(dash: "dotted")`）、`rule` カラーを使用（ストライプ背景は廃止）
 
 ### 6.2 slide.typ（slide）
 
