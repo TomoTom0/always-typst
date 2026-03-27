@@ -5,9 +5,8 @@
 #   altyp <command> [options]
 #
 # Commands:
-#   install                インストール（リポジトリルートから実行）
-#   convert <input.md>     Markdown を Typst / PDF に変換
-#   build <input.typ>      Typst を PDF にコンパイル
+#   install                          インストール（リポジトリルートから実行）
+#   convert <input.md|input.typ>     Markdown / Typst を PDF に変換
 set -euo pipefail
 
 VERSION="0.1.0"
@@ -25,7 +24,7 @@ usage() {
   sed -n '2,10p' "$0" | sed 's/^# //' | sed 's/^#//'
   cat <<'EOF'
 
-convert options:
+convert options (.md 入力時):
   --to typst|pdf         出力形式（デフォルト: typst）
   --output, -o <file>    出力ファイルパス
   --title <str>          タイトル（省略時は最初の H1 から自動抽出）
@@ -38,9 +37,9 @@ convert options:
   --tone,   -t casual|business|stylish  トーン（デフォルト: business）
   --color,  -c blue|green|mono|warm|purple|teal  カラー（デフォルト: blue）
 
-build options:
-  --watch, -w            ファイル変更を監視して自動再コンパイル
+convert options (.typ 入力時):
   --output, -o <file>    出力 PDF パス
+  --watch, -w            ファイル変更を監視して自動再コンパイル
 EOF
   exit 0
 }
@@ -88,11 +87,28 @@ cmd_install() {
 }
 
 # ────────────────────────────────────────
+# typst compile / watch（内部ヘルパー）
+# ────────────────────────────────────────
+_typst_compile() {
+  local input_typ="$1" output="$2" watch="$3"
+  command -v typst &>/dev/null || { echo "Error: typst がインストールされていません。" >&2; exit 1; }
+
+  local subcmd="compile"
+  [[ "$watch" == "true" ]] && subcmd="watch"
+
+  local args=("$subcmd" "$input_typ")
+  [[ -n "$output" ]] && args+=("$output")
+
+  echo "Running: typst ${args[*]}"
+  typst "${args[@]}"
+}
+
+# ────────────────────────────────────────
 # convert
 # ────────────────────────────────────────
 cmd_convert() {
-  local input_md=""
-  local output="" to="typst"
+  local input=""
+  local output="" to="typst" watch=false
   local title="" subtitle="" author="" date=""
   local toc="false" cover="false"
   local layout="print" tone="business" color="blue"
@@ -101,6 +117,7 @@ cmd_convert() {
     case "$1" in
       --to)           to="$2";       shift 2 ;;
       --output|-o)    output="$2";   shift 2 ;;
+      --watch|-w)     watch=true;    shift ;;
       --title)        title="$2";    shift 2 ;;
       --subtitle)     subtitle="$2"; shift 2 ;;
       --author)       author="$2";   shift 2 ;;
@@ -112,15 +129,23 @@ cmd_convert() {
       --color|-c)     color="$2";    shift 2 ;;
       -*)             echo "Unknown option: $1" >&2; exit 1 ;;
       *)
-        if [[ -z "$input_md" ]]; then input_md="$1"
+        if [[ -z "$input" ]]; then input="$1"
         else echo "Unexpected argument: $1" >&2; exit 1
         fi
         shift ;;
     esac
   done
 
-  [[ -z "$input_md" ]] && { echo "Error: 入力ファイルを指定してください。" >&2; exit 1; }
-  [[ ! -f "$input_md" ]] && { echo "Error: ファイルが見つかりません: $input_md" >&2; exit 1; }
+  [[ -z "$input" ]] && { echo "Error: 入力ファイルを指定してください。" >&2; exit 1; }
+  [[ ! -f "$input" ]] && { echo "Error: ファイルが見つかりません: $input" >&2; exit 1; }
+
+  # ── .typ 入力: そのまま typst compile/watch ──────────────────────────
+  if [[ "$input" == *.typ ]]; then
+    _typst_compile "$input" "$output" "$watch"
+    return
+  fi
+
+  # ── .md 入力: Markdown → Typst（→ PDF）────────────────────────────────
   command -v pandoc &>/dev/null || { echo "Error: pandoc がインストールされていません。" >&2; exit 1; }
   local pandoc_ver
   pandoc_ver=$(pandoc --version | awk 'NR==1{print $2}')
@@ -134,20 +159,20 @@ cmd_convert() {
   elif [[ -n "$output" ]]; then
     typ_out="$output"
   else
-    typ_out="${input_md%.md}.typ"
+    typ_out="${input%.md}.typ"
   fi
 
   # H1 からタイトルを自動抽出
   if [[ -z "$title" ]]; then
-    title=$(grep -m1 "^# " "$input_md" | sed 's/^# //' || true)
+    title=$(grep -m1 "^# " "$input" | sed 's/^# //' || true)
   fi
 
   # H1 を除いた一時 MD
   _TMPFILE=$(mktemp --suffix=.md)
   if [[ -n "$title" ]]; then
-    awk 'NR==1 && /^# / {next} {print}' "$input_md" > "$_TMPFILE"
+    awk 'NR==1 && /^# / {next} {print}' "$input" > "$_TMPFILE"
   else
-    cp "$input_md" "$_TMPFILE"
+    cp "$input" "$_TMPFILE"
   fi
 
   # always-typst ヘッダを生成
@@ -184,47 +209,8 @@ cmd_convert() {
 
   # PDF まで変換
   if [[ "$to" == "pdf" ]]; then
-    if [[ -n "$output" ]]; then
-      cmd_build "$typ_out" --output "$output"
-    else
-      cmd_build "$typ_out"
-    fi
+    _typst_compile "$typ_out" "$output" "false"
   fi
-}
-
-# ────────────────────────────────────────
-# build
-# ────────────────────────────────────────
-cmd_build() {
-  local input_typ=""
-  local output=""
-  local watch=false
-
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --output|-o)  output="$2"; shift 2 ;;
-      --watch|-w)   watch=true;  shift ;;
-      -*)           echo "Unknown option: $1" >&2; exit 1 ;;
-      *)
-        if [[ -z "$input_typ" ]]; then input_typ="$1"
-        else echo "Unexpected argument: $1" >&2; exit 1
-        fi
-        shift ;;
-    esac
-  done
-
-  [[ -z "$input_typ" ]] && { echo "Error: 入力ファイルを指定してください。" >&2; exit 1; }
-  [[ ! -f "$input_typ" ]] && { echo "Error: ファイルが見つかりません: $input_typ" >&2; exit 1; }
-  command -v typst &>/dev/null || { echo "Error: typst がインストールされていません。" >&2; exit 1; }
-
-  local subcmd="compile"
-  $watch && subcmd="watch"
-
-  local args=("$subcmd" "$input_typ")
-  [[ -n "$output" ]] && args+=("$output")
-
-  echo "Running: typst ${args[*]}"
-  typst "${args[@]}"
 }
 
 # ────────────────────────────────────────
@@ -235,7 +221,6 @@ cmd_build() {
 case "$1" in
   install)        shift; cmd_install "$@" ;;
   convert)        shift; cmd_convert "$@" ;;
-  build)          shift; cmd_build   "$@" ;;
   help|--help|-h) usage ;;
   --version|-v)   echo "altyp $VERSION"; exit 0 ;;
   *)              echo "Unknown command: $1" >&2; echo "Run 'altyp --help' for usage." >&2; exit 1 ;;
