@@ -133,9 +133,15 @@
   // テーブルスタイル
   set table(
     stroke: (x, y) => {
-      let s = stroke(paint: p.at("rule"), thickness: 0.8pt, dash: "dotted")
-      if y == 0 { none }
-      else { (top: s, left: s) }
+      let thin = stroke(paint: p.at("rule"), thickness: 0.5pt)
+      if y == 0 {
+        (
+          top: thin, left: thin, right: thin,
+          bottom: stroke(paint: p.at("primary"), thickness: 1.5pt),
+        )
+      } else {
+        thin
+      }
     },
     fill: (x, y) => if y == 0 { p.at("table-head") } else { white },
   )

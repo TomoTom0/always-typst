@@ -217,9 +217,10 @@
     return wrap(align(center, block(width: w2, b2)))
   }
 
-  // Step 3: 90度回転（auto のみ）
-  if mode == auto and w2 <= lw {
-    return make-rotated(b2, lw)
+  // Step 3: 90度回転（auto のみ）- portrait に収まらない場合は常に回転
+  if mode == auto {
+    let use-lw = calc.max(lw, w2)
+    return make-rotated(b2, use-lw)
   }
 
   // フォールバック: 0.75em + はみ出し許容（行方向ページまたぎも許容）
